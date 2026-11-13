@@ -508,11 +508,23 @@ function onDragStart(e, piece) {
   function move(ev) {
     ghost.style.left = (ev.clientX - 30) + "px";
     ghost.style.top  = (ev.clientY - 20) + "px";
+
+    // ── Auto-scroll al acercarse a los bordes superior o inferior ──
+    var edgeThreshold = 60; // píxeles desde el borde para activar el scroll
+    var scrollSpeed = 12;   // velocidad del desplazamiento
+    
+    if (ev.clientY < edgeThreshold) {
+      window.scrollBy(0, -scrollSpeed); // Sube la página
+    } else if (ev.clientY > window.innerHeight - edgeThreshold) {
+      window.scrollBy(0, scrollSpeed);  // Baja la página
+    }
+
     document.querySelectorAll(".slot").forEach(function(s) { s.classList.remove("hovering"); });
     var el = document.elementFromPoint(ev.clientX, ev.clientY);
     var s = el && el.closest(".slot");
     if (s && !s.classList.contains("ok")) s.classList.add("hovering");
   }
+
   function up(ev) {
     document.removeEventListener("pointermove", move);
     document.removeEventListener("pointerup", up);
@@ -522,7 +534,12 @@ function onDragStart(e, piece) {
     var el = document.elementFromPoint(ev.clientX, ev.clientY);
     var s = el && el.closest(".slot");
     place(piece, s);
+    // Redibujar las líneas SVG por si cambió la posición de los elementos al hacer scroll
+    if (typeof drawLines === 'function') {
+      setTimeout(drawLines, 50);
+    }
   }
+  
   document.addEventListener("pointermove", move);
   document.addEventListener("pointerup", up);
 }
