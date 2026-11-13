@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Patrón Composite · DOM del Navegador</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #0f1115;
+  --surface:   #161920;
+  --surface2:  #1d212b;
+  --border:    #282e3b;
+  --border-hi: #3b4457;
+  --text:      #e2e6ee;
+  --muted:     #8892a4;
+  --accent:    #7c93c3;
+  --accent-bg: rgba(124, 147, 195, 0.08);
+  --slot-bg:   #12151b;
+  --ok:        #579678;
+  --ok-bg:     rgba(87, 150, 120, 0.1);
+  --err:       #b85c5c;
+  --err-bg:    rgba(184, 92, 92, 0.1);
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+code, pre, .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+/* ── header ── */
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.logo {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  font-size: .92rem;
+  color: var(--text);
+  background: var(--surface2);
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.logo span { color: var(--muted); }
+.hinfo { flex: 1; }
+.hinfo h1 { font-size: .98rem; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em; }
+.hinfo p { font-size: .8rem; color: var(--muted); margin-top: 2px; }
+.prog-wrap { display: flex; align-items: center; gap: 10px; }
+.prog { width: 140px; height: 5px; background: var(--surface2); border-radius: 9px; overflow: hidden; border: 1px solid var(--border); }
+.prog i { display: block; height: 100%; width: 0%; background: var(--accent); border-radius: 9px; transition: width .4s ease; }
+.prog-label { font-size: .78rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.btn {
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.btn:hover { background: #232834; border-color: var(--border-hi); }
+
+/* ── layout ── */
+main { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+
+/* ── roles bar (sin puntos de colores) ── */
+.roles-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.roles-label {
+  font-size: .75rem;
+  color: var(--muted);
+  margin-right: 4px;
+}
+.role-tag {
+  font-size: .74rem;
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 3px 10px;
+  border-radius: 5px;
+}
+
+/* ── SVG connector layer ── */
+#svg-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+.tree-wrap { position: relative; }
+
+/* ── tree ── */
+.tree { display: flex; flex-direction: column; gap: 0; position: relative; z-index: 1; }
+.level { display: flex; justify-content: center; gap: 28px; padding: 0 8px; }
+.level + .level { margin-top: 42px; }
+
+/* ── node card ── */
+.node {
+  position: relative;
+  min-width: 185px;
+  max-width: 245px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  flex: 1;
+}
+.node-head {
+  padding: 9px 14px;
+  font-size: .74rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: var(--text);
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+.node-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 9px; }
+.question { font-size: .79rem; color: var(--muted); line-height: 1.45; }
+.slot {
+  min-height: 38px;
+  background: var(--slot-bg);
+  border: 1px dashed var(--border-hi);
+  border-radius: 6px;
+  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.slot.hovering { border-color: var(--accent); background: var(--accent-bg); }
+.slot.ok {
+  border-style: solid;
+  border-color: var(--ok);
+  background: var(--ok-bg);
+  cursor: default;
+}
+.slot.ok .slot-answer { color: var(--text); }
+.slot.err { border-color: var(--err); background: var(--err-bg); animation: shake .35s; }
+.slot-placeholder { font-size: .76rem; color: #4a5366; pointer-events: none; }
+.slot-answer { font-size: .78rem; line-height: 1.4; pointer-events: none; }
+.slot-answer code { font-family: 'JetBrains Mono', monospace; font-size: .77rem; color: var(--accent); }
+.slot.ok .slot-answer code { color: #84bfa3; }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+/* ── feedback ── */
+#feedback {
+  min-height: 2.4em;
+  margin-top: 18px;
+  font-size: .83rem;
+  padding: 9px 14px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  transition: all .2s;
+  line-height: 1.45;
+}
+#feedback.ok { background: var(--ok-bg); border-color: rgba(87, 150, 120, 0.35); color: #96cbb1; }
+#feedback.err { background: var(--err-bg); border-color: rgba(184, 92, 92, 0.35); color: #d68b8b; }
+
+/* ── tray ── */
+.tray {
+  margin-top: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+.tray-title { font-size: .76rem; font-weight: 500; color: var(--muted); margin-bottom: 12px; }
+.pieces { display: flex; flex-wrap: wrap; gap: 8px; min-height: 40px; }
+.piece {
+  font-size: .79rem;
+  padding: 7px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition: border-color .15s, background .15s;
+  line-height: 1.4;
+}
+.piece code { font-family: 'JetBrains Mono', monospace; font-size: .77rem; color: var(--accent); }
+.piece.selected { border-color: var(--accent); background: var(--accent-bg); }
+.piece.returning { animation: shake .35s; }
+.piece:hover { border-color: var(--border-hi); background: #232834; }
+.ghost {
+  position: fixed; z-index: 100; pointer-events: none;
+  opacity: .92; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+}
+
+/* ── win screen ── */
+#win {
+  display: none;
+  margin-top: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border-hi);
+  border-radius: 8px;
+  padding: 20px 24px;
+}
+#win.show { display: block; animation: fadeIn .35s ease; }
+#win h2 { font-size: 1rem; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+#win p { font-size: .84rem; color: var(--muted); line-height: 1.6; margin-bottom: 14px; }
+#win code { color: var(--accent); }
+.devtools-preview {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .79rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px 16px;
+  line-height: 1.9;
+}
+.dt-tag { color: var(--accent); }
+.dt-attr { color: #a4b1cd; }
+.dt-val { color: #84bfa3; }
+.dt-comment { color: #5c667a; }
+.dt-indent { padding-left: 20px; }
+.dt-indent2 { padding-left: 40px; }
+.dt-indent3 { padding-left: 60px; }
+.node-drawn { opacity: 0; animation: fadeIn .3s forwards; }
+@keyframes fadeIn { to { opacity: 1; } }
+.src-ref { font-size: .75rem; color: var(--muted); margin-top: 12px; }
+.src-ref a { color: var(--accent); text-decoration: none; }
+.src-ref a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">composite<span>/</span>dom</div>
+  <div class="hinfo">
+    <h1>Patrón Composite en el DOM del navegador</h1>
+    <p>Selecciona una pieza y colócala en el espacio correspondiente del árbol</p>
+  </div>
+  <div class="prog-wrap">
+    <div class="prog"><i id="pb"></i></div>
+    <span class="prog-label" id="st">0 / 9</span>
+  </div>
+  <button class="btn" id="rs">Reiniciar</button>
+</header>
+
+<main>
+  <div class="roles-bar">
+    <span class="roles-label">Participantes:</span>
+    <span class="role-tag">Client</span>
+    <span class="role-tag">Component</span>
+    <span class="role-tag">Composite</span>
+    <span class="role-tag">Leaf</span>
+  </div>
+
+  <div class="tree-wrap">
+    <svg id="svg-layer" aria-hidden="true"></svg>
+    <div class="tree" id="tree">
+
+      <!-- NIVEL 0: Client -->
+      <div class="level" data-level="0">
+        <div class="node" id="n-client">
+          <div class="node-head">Client</div>
+          <div class="node-body">
+            <p class="question">¿Quién arranca el recorrido del árbol DOM?</p>
+            <div class="slot" data-id="q-client">
+              <span class="slot-placeholder">Colocar pieza</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- NIVEL 1: Component -->
+      <div class="level" data-level="1">
+        <div class="node" id="n-component">
+          <div class="node-head">Component (interfaz común)</div>
+          <div class="node-body">
+            <p class="question">¿Cuál es la clase base de todos los nodos del DOM?</p>
+            <div class="slot" data-id="q-component-class">
+              <span class="slot-placeholder">Colocar pieza</span>
+            </div>
+            <p class="question">¿Qué método tienen en común hojas y compuestos para dibujarse/renderizarse?</p>
+            <div class="slot" data-id="q-component-op">
+              <span class="slot-placeholder">Colocar pieza</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- NIVEL 2: Composite + Leaf -->
+      <div class="level" data-level="2">
+        <div class="node" id="n-composite">
+          <div class="node-head">Composite</div>
+          <div class="node-body">
+            <p class="question">¿Cuál es el tipo de nodo que puede contener hijos en el DOM?</p>
+            <div class="slot" data-id="q-composite-class">
+              <span class="slot-placeholder">Colocar pieza</span>
+            </div>
+            <p class="question">¿Con qué método agrega hijos un HTMLElement?</p>
+            <div class="slot" data-id="q-composite-add">
+              <span class="slot-placeholder">Colocar pieza</span>
+            </div>
+            <p class="question">¿Cómo recorre el navegador al Composite para renderizarlo?</p>
+            <div class="slot" data-id="q-composite-op">
+              <span class="slot-placeholder">Colocar pieza</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="node" id="n-leaf">
+          <div class="node-head">Leaf</div>
+          <div class="node-body">
+            <p class="question">¿Qué tipo de nodo es una Leaf en el DOM (no tiene hijos)?</p>
+            <div class="slot" data-id="q-leaf-class">
+              <span class="slot-placeholder">Colocar pieza</span>
+            </div>
+            <p class="question">¿Qué propiedad expone el texto de un nodo hoja?</p>
+            <div class="slot" data-id="q-leaf-prop">
+              <span class="slot-placeholder">Colocar pieza</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- NIVEL 3: Instancias concretas -->
+      <div class="level" data-level="3">
+        <div class="node" id="n-instances">
+          <div class="node-head">Instancias Composite concretas</div>
+          <div class="node-body">
+            <p class="question">Nombre dos etiquetas HTML que actúan como Composite (contienen hijos):</p>
+            <div class="slot" data-id="q-instances">
+              <span class="slot-placeholder">Colocar pieza</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="feedback"></div>
+
+  <div class="tray">
+    <div class="tray-title">Piezas disponibles · haz clic o arrastra hacia el hueco correspondiente</div>
+    <div class="pieces" id="pieces"></div>
+  </div>
+
+  <section id="win">
+    <h2>Árbol Composite completado</h2>
+    <p>Así luce la jerarquía real en las DevTools del navegador. El motor de renderizado recorre el árbol desde la raíz: cuando llega a un <code>HTMLElement</code> (Composite) llama a sus hijos recursivamente; cuando llega a un <code>Text</code> (Leaf) simplemente lo pinta.</p>
+    <div class="devtools-preview" id="dt-preview"></div>
+    <p class="src-ref">Fuente: <a href="https://developer.mozilla.org/en-US/docs/Web/API/Node" target="_blank" rel="noopener">MDN Web Docs — Node</a> · <a href="https://dom.spec.whatwg.org/" target="_blank" rel="noopener">WHATWG DOM Standard</a></p>
+  </section>
+</main>
+
+<script>
+var PIECES = [
+  { id:"q-client",         html:"<code>document.getElementById()</code>",
+    text:"document.getElementById()",
+    explain:"El script (Client) accede al árbol usando la API del DOM, sin importar si el nodo es hoja o compuesto." },
+  { id:"q-component-class",html:"<code>Node</code>",
+    text:"Node",
+    explain:"Node es la interfaz base (Component) de la que heredan todos los tipos de nodos del DOM." },
+  { id:"q-component-op",   html:"<code>render() / paint()</code>",
+    text:"render() / paint()",
+    explain:"El motor del navegador llama internamente a la misma operación de pintado sobre cualquier nodo, sea hoja o contenedor." },
+  { id:"q-composite-class",html:"<code>HTMLElement</code>",
+    text:"HTMLElement",
+    explain:"HTMLElement (extiende Element → Node) puede tener hijos, cumple el rol de Composite." },
+  { id:"q-composite-add",  html:"<code>.appendChild(child)</code>",
+    text:".appendChild(child)",
+    explain:"appendChild es la operación add(Component) del patrón: agrega un nodo hijo al contenedor." },
+  { id:"q-composite-op",   html:"Recorre <code>childNodes</code> recursivamente",
+    text:"Recorre childNodes recursivamente",
+    explain:"El navegador itera childNodes y delega la operación a cada hijo, igual que el patrón Composite." },
+  { id:"q-leaf-class",     html:"<code>Text</code> (textNode)",
+    text:"Text (textNode)",
+    explain:"Un nodo de tipo Text es hoja pura: tiene contenido pero no puede tener hijos." },
+  { id:"q-leaf-prop",      html:"<code>nodeValue</code> / <code>textContent</code>",
+    text:"nodeValue / textContent",
+    explain:"Estas propiedades exponen el contenido del nodo hoja, sin hijos que recorrer." },
+  { id:"q-instances",      html:"<code>&lt;div&gt;</code> y <code>&lt;ul&gt;</code>",
+    text:"<div> y <ul>",
+    explain:"Cualquier etiqueta que contenga otras etiquetas es un Composite concreto: div, ul, section, nav, etc." }
+];
+
+var total = PIECES.length;
+var done = 0;
+var selected = null;
+
+function shuffle(a) {
+  for (var i = a.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+
+function buildPieces() {
+  var box = document.getElementById("pieces");
+  box.innerHTML = "";
+  shuffle(PIECES.slice()).forEach(function(p) {
+    var el = document.createElement("div");
+    el.className = "piece";
+    el.innerHTML = p.html;
+    el.dataset.pid = p.id;
+    el.addEventListener("click", function() { onPieceClick(el); });
+    el.addEventListener("pointerdown", function(e) { onDragStart(e, el); });
+    box.appendChild(el);
+  });
+}
+
+function updateStat() {
+  document.getElementById("pb").style.width = (done / total * 100) + "%";
+  document.getElementById("st").textContent = done + " / " + total;
+}
+
+function say(msg, cls) {
+  var fb = document.getElementById("feedback");
+  fb.textContent = msg;
+  fb.className = cls || "";
+}
+
+function place(piece, slot) {
+  if (!slot || slot.classList.contains("ok")) return false;
+  var pid = piece.dataset.pid;
+  var sid = slot.dataset.id;
+  var data = PIECES.filter(function(p) { return p.id === pid; })[0];
+
+  if (pid === sid) {
+    var ans = document.createElement("span");
+    ans.className = "slot-answer";
+    ans.innerHTML = data.html;
+    var ph = slot.querySelector(".slot-placeholder");
+    if (ph) ph.remove();
+    slot.appendChild(ans);
+    slot.classList.add("ok");
+    piece.remove();
+    done++;
+    updateStat();
+    say("Correcto: " + data.explain, "ok");
+    if (done === total) setTimeout(showWin, 700);
+    return true;
+  } else {
+    slot.classList.add("err");
+    setTimeout(function() { slot.classList.remove("err"); }, 400);
+    piece.classList.add("returning");
+    setTimeout(function() { piece.classList.remove("returning"); }, 400);
+    say("Incorrecto: «" + data.text + "» no corresponde a este espacio.", "err");
+    return false;
+  }
+}
+
+function onPieceClick(el) {
+  if (selected === el) {
+    el.classList.remove("selected");
+    selected = null;
+    say("", "");
+    return;
+  }
+  if (selected) selected.classList.remove("selected");
+  selected = el;
+  el.classList.add("selected");
+  say("Selecciona el espacio donde deseas colocar esta pieza.", "");
+}
+
+document.querySelectorAll(".slot").forEach(function(slot) {
+  slot.addEventListener("click", function() {
+    if (!selected) return;
+    var p = selected;
+    selected.classList.remove("selected");
+    selected = null;
+    place(p, slot);
+  });
+});
+
+function onDragStart(e, piece) {
+  e.preventDefault();
+  if (selected) { selected.classList.remove("selected"); selected = null; }
+  var ghost = piece.cloneNode(true);
+  ghost.className = "piece ghost";
+  ghost.style.left = (e.clientX - 30) + "px";
+  ghost.style.top  = (e.clientY - 20) + "px";
+  document.body.appendChild(ghost);
+  piece.style.opacity = "0.35";
+
+  function move(ev) {
+    ghost.style.left = (ev.clientX - 30) + "px";
+    ghost.style.top  = (ev.clientY - 20) + "px";
+    document.querySelectorAll(".slot").forEach(function(s) { s.classList.remove("hovering"); });
+    var el = document.elementFromPoint(ev.clientX, ev.clientY);
+    var s = el && el.closest(".slot");
+    if (s && !s.classList.contains("ok")) s.classList.add("hovering");
+  }
+  function up(ev) {
+    document.removeEventListener("pointermove", move);
+    document.removeEventListener("pointerup", up);
+    ghost.remove();
+    piece.style.opacity = "";
+    document.querySelectorAll(".slot").forEach(function(s) { s.classList.remove("hovering"); });
+    var el = document.elementFromPoint(ev.clientX, ev.clientY);
+    var s = el && el.closest(".slot");
+    place(piece, s);
+  }
+  document.addEventListener("pointermove", move);
+  document.addEventListener("pointerup", up);
+}
+
+function drawLines() {
+  var svg = document.getElementById("svg-layer");
+  var wrap = svg.parentElement;
+  var wr = wrap.getBoundingClientRect();
+  svg.setAttribute("viewBox", "0 0 " + wrap.offsetWidth + " " + wrap.offsetHeight);
+
+  function bottom(el) {
+    var r = el.getBoundingClientRect();
+    return { x: r.left - wr.left + r.width / 2, y: r.bottom - wr.top };
+  }
+  function top(el) {
+    var r = el.getBoundingClientRect();
+    return { x: r.left - wr.left + r.width / 2, y: r.top - wr.top };
+  }
+
+  svg.innerHTML = "";
+
+  var pairs = [
+    ["n-client",    "n-component"],
+    ["n-component", "n-composite"],
+    ["n-component", "n-leaf"],
+    ["n-composite", "n-instances"]
+  ];
+
+  pairs.forEach(function(p) {
+    var from = document.getElementById(p[0]);
+    var to   = document.getElementById(p[1]);
+    if (!from || !to) return;
+    var a = bottom(from), b = top(to);
+    var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    var cy = (a.y + b.y) / 2;
+    path.setAttribute("d", "M" + a.x + "," + a.y + " C" + a.x + "," + cy + " " + b.x + "," + cy + " " + b.x + "," + b.y);
+    path.setAttribute("stroke", "#2e3545");
+    path.setAttribute("stroke-width", "1.5");
+    path.setAttribute("fill", "none");
+    svg.appendChild(path);
+  });
+}
+
+var DT_LINES = [
+  {cls:"",        html:'<span class="dt-tag">&lt;html&gt;</span> <span class="dt-comment">// Composite (HTMLElement)</span>'},
+  {cls:"dt-indent",html:'<span class="dt-tag">&lt;body&gt;</span> <span class="dt-comment">// Composite</span>'},
+  {cls:"dt-indent2",html:'<span class="dt-tag">&lt;div <span class="dt-attr">id</span>=<span class="dt-val">"app"</span>&gt;</span> <span class="dt-comment">// Composite</span>'},
+  {cls:"dt-indent3",html:'<span class="dt-tag">&lt;h1&gt;</span>'},
+  {cls:"dt-indent3",html:'&nbsp;&nbsp;"Hola mundo" <span class="dt-comment">// Leaf (Text node)</span>'},
+  {cls:"dt-indent3",html:'<span class="dt-tag">&lt;/h1&gt;</span>'},
+  {cls:"dt-indent3",html:'<span class="dt-tag">&lt;ul&gt;</span> <span class="dt-comment">// Composite</span>'},
+  {cls:"dt-indent3",html:'&nbsp;&nbsp;<span class="dt-tag">&lt;li&gt;</span>"Ítem 1"<span class="dt-tag">&lt;/li&gt;</span> <span class="dt-comment">// Leaf</span>'},
+  {cls:"dt-indent3",html:'&nbsp;&nbsp;<span class="dt-tag">&lt;li&gt;</span>"Ítem 2"<span class="dt-tag">&lt;/li&gt;</span> <span class="dt-comment">// Leaf</span>'},
+  {cls:"dt-indent3",html:'<span class="dt-tag">&lt;/ul&gt;</span>'},
+  {cls:"dt-indent2",html:'<span class="dt-tag">&lt;/div&gt;</span>'},
+  {cls:"dt-indent",html:'<span class="dt-tag">&lt;/body&gt;</span>'},
+  {cls:"",        html:'<span class="dt-tag">&lt;/html&gt;</span>'}
+];
+
+function showWin() {
+  var win = document.getElementById("win");
+  win.className = "show";
+  win.scrollIntoView({ behavior: "smooth", block: "start" });
+  var dt = document.getElementById("dt-preview");
+  dt.innerHTML = "";
+  var i = 0;
+  (function next() {
+    if (i >= DT_LINES.length) return;
+    var line = DT_LINES[i];
+    var div = document.createElement("div");
+    div.className = "node-drawn " + line.cls;
+    div.innerHTML = line.html;
+    dt.appendChild(div);
+    i++;
+    setTimeout(next, 240);
+  })();
+}
+
+function reset() {
+  done = 0; selected = null;
+  say("");
+  document.getElementById("win").className = "";
+  document.querySelectorAll(".slot").forEach(function(s) {
+    s.className = "slot";
+    var ans = s.querySelector(".slot-answer");
+    if (ans) ans.remove();
+    var ph = s.querySelector(".slot-placeholder");
+    if (!ph) {
+      var sp = document.createElement("span");
+      sp.className = "slot-placeholder";
+      sp.textContent = "Colocar pieza";
+      s.appendChild(sp);
+    }
+  });
+  updateStat();
+  buildPieces();
+  setTimeout(drawLines, 50);
+}
+
+document.getElementById("rs").addEventListener("click", reset);
+reset();
+window.addEventListener("resize", drawLines);
+</script>
+</body>
+</html>
